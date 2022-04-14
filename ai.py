@@ -3,60 +3,23 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import make_blobs, make_circles
 from sklearn.metrics import accuracy_score
 
-def init(n0, n1, n2):
-    w1 = np.random.randn(n1, n0)
-    b1 = np.random.randn(n1, 1)
+def init(dimensions):
+    parameter = {}
 
-    w2 = np.random.randn(n2, n1)
-    b2 = np.random.randn(n2, 1)
-
-    w3 = np.random.randn(n1, n1)
-    b3 = np.random.randn(n1, 1)
-
-    w4 = np.random.randn(n2, n1)
-    b4 = np.random.randn(n2, 1)
-
-    parameter = {
-        'w1' : w1,
-        'w2' : w2,
-        'w3' : w3,
-        'w4' : w4,
-        'b1' : b1,
-        'b2' : b2,
-        'b3' : b3,
-        'b4' : b4,
-    }
+    for c in range(1, len(dimensions)):
+        parameter['W' + str(c)] = np.random.randn(dimensions[c], dimensions[c - 1])
+        parameter['b' + str(c)] = np.random.randn(dimensions[c], 1)
 
     return parameter
 
 def forward_propagation(x, parameter):
-    w1 = parameter['w1']
-    w2 = parameter['w2']
-    w3 = parameter['w3']
-    w4 = parameter['w4']
-    b1 = parameter['b1']
-    b2 = parameter['b2']
-    b3 = parameter['b3']
-    b4 = parameter['b4']
+    activations = {'A0' : x}
 
-    Z1 = w1.dot(x) + b1
-    A1 = 1 / (1 + np.exp(-Z1))
+    C = len(parameter) // 2
 
-    Z2 = w2.dot(A1) + b2
-    A2 = 1 / (1 + np.exp(-Z2))
-
-    Z3 = w3.dot(A1) + b3
-    A3 = 1 / (1 + np.exp(-Z3))
-
-    Z4 = w4.dot(A3) + b4
-    A4 = 1 / (1 + np.exp(-Z4))
-
-    activations = {
-        'A1' : A1,
-        'A2' : A2,
-        'A3' : A3,
-        'A4' : A4,
-    }
+    for c in range(1, C + 1):
+        Z = parameter['W' + str(c)].dot(activations['A' + str(c - 1)]) + parameter['b' + str(c)]
+        activations['A' + str(c)] = 1 / (1 + np.exp(-Z))
 
     return activations
 
@@ -64,121 +27,63 @@ def log_loss(A, y):
     expo = 1e-15
     return 1 / len(y) * np.sum(-y * np.log(A + expo) - (1 - y) * np.log(1 - A + expo))
 
-def back_propagation(x, y, activations, parameter):
-
-    A1 = activations['A1']
-    A2 = activations['A2']
-    A3 = activations['A3']
-    A4 = activations['A4']
-    w2 = parameter['w2']
-    w3 = parameter['w3']
-    w4 = parameter['w4']
-
+def back_propagation(y, activations, parameter):
+    gradient = {}
     m = y.shape[1]
+    C = len(parameter) // 2
 
-    dz4 = A4 - y
-    dw4 = 1 / m * dz4.dot(A3.T)
-    db4 = 1 / m * np.sum(dz4, axis=1, keepdims=True)
+    dz = activations['A' + str(C)] - y
 
-    dz3 = np.dot(w4.T, dz4) * A3 * (1 - A3)
-    dw3 = 1 / m * dz3.dot(A2.T)
-    db3 = 1 / m * np.sum(dz3, axis=1, keepdims=True)
-
-    dz2 = np.dot(w3.T, dz3) * A2 * (1 - A2)
-    dw2 = 1 / m * dz2.dot(A2.T)
-    db2 = 1 / m * np.sum(dz2, axis=1, keepdims=True)
-
-    dz1 = np.dot(w2, dz2) * A1 * (1 - A1)
-    dw1 = 1 / m * dz1.dot(x.T)
-    db1 = 1 / m * np.sum(dz1, axis=1, keepdims=True)
-
-
-    gradient = {
-        'dw1' : dw1,
-        'db1' : db1,
-        'dw2' : dw2,
-        'db2' : db2,
-        'dw3' : dw3,
-        'db3' : db3,
-        'dw4' : dw4,
-        'db4' : db4,
-    }
+    for c in reversed(range(1, C + 1)):
+        gradient['dw' + str(c)] = 1 / m * np.dot(dz, activations['A' + str(c - 1)].T)
+        gradient['db' + str(c)] = 1 / m * np.sum(dz, axis=1, keepdims=True)
+        if c > 1:
+            dz = np.dot(parameter['W' + str(c)].T, dz) * activations['A' + str(c - 1)] * (1 - activations['A' + str(c - 1)])
 
     return gradient
 
 def update(gradient, parameter, learning):
-    dw1 = gradient["dw1"]
-    dw2 = gradient["dw2"]
-    dw3 = gradient["dw3"]
-    dw4 = gradient["dw4"]
+    C = len(parameter) // 2
 
-    db1 = gradient["db1"]
-    db2 = gradient["db2"]
-    db3 = gradient["db3"]
-    db4 = gradient["db4"]
-
-    w1 = parameter["w1"]
-    b1 = parameter["b1"]
-    w2 = parameter["w2"]
-    b2 = parameter["b2"]
-    w3 = parameter["w3"]
-    b3 = parameter["b3"]
-    w4 = parameter["w4"]
-    b4 = parameter["b4"]
-
-    w1 = w1 - learning * dw1
-    b1 = b1 - learning * db1
-    w2 = w2 - learning * dw2
-    b2 = b2 - learning * db2
-    w3 = w3 - learning * dw3
-    b3 = b3 - learning * db3
-    w4 = w4 - learning * dw4
-    b4 = b4 - learning * db4
-    
-    parameter = {
-        'w1' : w1,
-        'w2' : w2,
-        'w3' : w3,
-        'w4' : w4,
-        'b1' : b1,
-        'b2' : b2,
-        'b3' : b3,
-        'b4' : b4,
-    }
+    for c in range(1, C + 1):
+        parameter['W' + str(c)] = parameter['W' + str(c)] - learning - gradient['dw' + str(c)]
+        parameter['b' + str(c)] = parameter['b' + str(c)] - learning - gradient['db' + str(c)]
 
     return parameter
 
 def predict(x, parameter):
     activations = forward_propagation(x, parameter)
-    A4 = activations['A4']
-    return A4 >= 0.5
+    C = len(parameter) // 2
+    Af = activations['A' + str(C)]
+    return Af >= 0.5
 
-def neuron(x, y, n1, learning = 0.01, n_iter = 8000):
-    n0 = x.shape[0]
-    n2 = y.shape[0]
-    parameter = init(n0, n1, n2)
+def neuron_network(x, y, hidden_layer = (32,32,32), learning = 0.01, n_iter = 8000):
+    dimensions = list(hidden_layer)
+    dimensions.insert(0, x.shape[0])
+    dimensions.append(y.shape[0])
 
-    lost = []
-    ac = []
+    parameter = init(dimensions)
+
+    train_loss = []
+    train_cout = []
+
     for i in range(n_iter):
-        A = forward_propagation(x,parameter)
-        gradient = back_propagation(x, y, A, parameter)
+        activations = forward_propagation(x, parameter)
+        gradient = back_propagation(y, activations, parameter)
         parameter = update(gradient, parameter, learning)
+
         if i %10 == 0:
-            lost.append(log_loss(y, A["A4"]))
+            C = len(parameter) // 2
+            train_loss.append(log_loss(y, activations['A' + str(C)]))
             y_pred = predict(x, parameter)
-            current_accu = accuracy_score(y.flatten(), y_pred.flatten())
-            ac.append(current_accu)
+            current = accuracy_score(y.flatten(), y_pred.flatten())
+            train_cout.append(current)
 
-    print(current_accu)
-    plt.figure(figsize=(14,4))
-    plt.subplot(1,2,1)
-    plt.plot(lost, label="lost")
-    plt.legend()
+    fix, ax = plt.subplots(nrows=1, ncols=3, figsize=(18,4))
+    ax[0].plot(train_loss, label='train loss')
+    ax[0].legend()
 
-    plt.subplot(1,2,2)
-    plt.plot(ac, label="ac")
-    plt.legend()
-
+    ax[1].plot(train_cout, label='train cout')
+    ax[1].legend()
     plt.show()
     return parameter
